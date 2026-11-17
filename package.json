@@ -3,11 +3,17 @@
   "version": "1.0.0",
   "description": "מחולל משחקים אוטומטי: בוחר ז'אנר פופולרי, נושא ופרמטרים, ומייצר משחק HTML5 שלם",
   "type": "module",
-  "bin": { "forge": "src/cli.js" },
+  "bin": {
+    "forge": "src/cli.js"
+  },
   "scripts": {
     "forge": "node src/cli.js",
     "trends": "node src/cli.js --trends",
-    "test": "node test/smoke.js"
+    "test": "node test/live-trends.test.js && node test/smoke.js",
+    "refresh-trends": "node src/cli.js --refresh-trends"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0"
+  }
 }

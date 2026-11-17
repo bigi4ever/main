@@ -28,9 +28,24 @@ node src/cli.js --genre runner --theme space --difficulty hard --seed 42
 
 המשחקים נשמרים ב-`games/<slug>/index.html`, והגלריה של כל המשחקים נמצאת ב-`games/index.html`. אותו `seed` תמיד ייצר את אותו משחק.
 
-## עדכון הטרנדים
+## טרנדים בזמן אמת
 
-אפשר לערוך את הציונים ב-`src/trends.js`, או ליצור קובץ `trends.override.json` בשורש הפרויקט:
+```bash
+npm install                                  # פעם אחת: מתקין את ה-SDK של Claude
+export ANTHROPIC_API_KEY=sk-ant-...          # או: ant auth login
+node src/cli.js --refresh-trends             # מחקר עכשיו + הצגת הדירוג
+node src/cli.js --live --count 3             # מרענן אם המחקר ישן מ-7 ימים, ואז בונה
+```
+
+מה קורה מאחורי הקלעים (`src/live-trends.js`):
+1. **מחקר:** Claude (`claude-opus-5-5`) מחפש ברשת נתונים מהחודשים האחרונים: דוחות Sensor Tower ו-AppMagic, טבלאות ההורדות בחנויות, טרנדים ב-Steam ופורטלים כמו Poki ו-CrazyGames. התוצאה היא דוח עם מקורות.
+2. **דירוג:** קריאה שנייה ממירה את הדוח לציון 0-100, מגמה (עולה/יציב/יורד) ונימוק לכל ז'אנר, בפורמט JSON קבוע. היא גם מציעה עד 5 ז'אנרים חמים שעוד אין להם תבנית.
+3. התוצאה נשמרת ב-`trends.live.json` ומשפיעה מיד על הבחירה. `--trends` מציג את הציונים, המגמות, הרעיונות החדשים והמקורות.
+
+עלות: כל רענון הוא כמה קריאות API עם חיפושים, בדרך כלל סנטים בודדים עד עשרות סנטים. לכן `--live` מרענן רק פעם בשבוע.
+בלי מפתח או בלי רשת התוכנה ממשיכה לעבוד עם הציונים הקיימים.
+
+סדר העדיפויות של הציונים: ציון בסיס (`src/trends.js`) ← מחקר חי (`trends.live.json`) ← דריסה ידנית (`trends.override.json`):
 
 ```json
 { "runner": 95, "idle": 60 }
@@ -41,10 +56,12 @@ node src/cli.js --genre runner --theme space --difficulty hard --seed 42
 ```
 src/cli.js                 שורת הפקודה
 src/forge.js               הליבה: בחירה, פרמטרים, שמות, בנייה, גלריה
-src/trends.js              ז'אנרים וציוני פופולריות
+src/trends.js              ז'אנרים וציוני בסיס
+src/live-trends.js         מחקר טרנדים חי עם Claude + חיפוש ברשת
 src/themes.js              נושאים: צבעים, אימוג'י, מילים
 src/templates/base.html    זמן ריצה משותף (לולאה, קלט, צלילים, אפקטים, שיאים)
 src/templates/*.game.js    לוגיקת כל ז'אנר
+test/live-trends.test.js   בדיקת המחקר החי עם לקוח מדומה
 test/smoke.js              בודק שכל ז'אנר נטען ורץ בדפדפן בלי שגיאות (Playwright)
 ```
 

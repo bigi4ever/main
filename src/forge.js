@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GENRES } from './trends.js';
 import { THEMES } from './themes.js';
+import { readLive } from './live-trends.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TPL = path.join(ROOT, 'src', 'templates');
@@ -33,11 +34,19 @@ export function makeRng(seed) {
 }
 
 // ---------- מגמות ----------
+// סדר העדיפויות: ציון בסיס (trends.js) <- מחקר חי (trends.live.json) <- דריסה ידנית (trends.override.json)
 export function loadGenres() {
+  const live = readLive();
   const file = path.join(ROOT, 'trends.override.json');
   let override = {};
   if (fs.existsSync(file)) override = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return GENRES.map(g => ({ ...g, score: override[g.id] ?? g.score })).sort((a, b) => b.score - a.score);
+  return GENRES.map(g => {
+    const l = live?.scores?.[g.id];
+    const out = { ...g, source: 'בסיס' };
+    if (l) Object.assign(out, { score: l.score, trend: l.trend, evidence: l.evidence, source: 'חי' });
+    if (override[g.id] != null) Object.assign(out, { score: override[g.id], source: 'ידני' });
+    return out;
+  }).sort((a, b) => b.score - a.score);
 }
 
 // משקל בחירה: פופולריות בריבוע (מעדיף בבירור את המובילים), עם קנס על ז'אנר שכבר נוצר הרבה, כדי לגוון.
@@ -127,8 +136,8 @@ export function plan({ seed = Date.now(), genre, theme, difficulty, made = [] } 
     howto: howtoFor(g.id, t),
     params,
     reason: genre ? 'נבחר ידנית' :
-      `${g.name}: פופולריות ${g.score}/100, נוצרו כבר ${made.filter(m => m.genre === g.id).length}, ` +
-      `סיכוי בחירה ${Math.round(genreWeight(g, made) / totalW * 100)}%. ${g.why}`,
+      `${g.name}: פופולריות ${g.score}/100 (${g.source === 'חי' ? 'מחקר חי' : g.source === 'ידני' ? 'דריסה ידנית' : 'ציון בסיס'}), נוצרו כבר ${made.filter(m => m.genre === g.id).length}, ` +
+      `סיכוי בחירה ${Math.round(genreWeight(g, made) / totalW * 100)}%. ${g.evidence || g.why}`,
     themeObj: t,
   };
 }
