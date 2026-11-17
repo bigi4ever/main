@@ -9,8 +9,9 @@
   "scripts": {
     "forge": "node src/cli.js",
     "trends": "node src/cli.js --trends",
-    "test": "node test/live-trends.test.js && node test/smoke.js && node test/logic.js",
-    "refresh-trends": "node src/cli.js --refresh-trends"
+    "test": "node test/live-trends.test.js && node test/invent.test.js && node test/smoke.js && node test/logic.js",
+    "refresh-trends": "node src/cli.js --refresh-trends",
+    "invent": "node src/cli.js --invent"
   },
   "license": "MIT",
   "dependencies": {

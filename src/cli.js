@@ -5,10 +5,13 @@
 //   node src/cli.js --trends        -> מציג את דירוג הז'אנרים ואת סיכויי הבחירה
 //   node src/cli.js --refresh-trends -> מחקר טרנדים חי עם Claude וחיפוש ברשת
 //   node src/cli.js --live --count 3 -> מרענן טרנדים אם עברו יותר מ-7 ימים, ואז בונה
+//   node src/cli.js --invent [--idea "..."] -> ה-AI ממציא מכניקה חדשה, כותב, בודק ושומר אותה כתבנית
 //   node src/cli.js --genre runner --theme space --difficulty hard --seed 42
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { plan, writeGame, readManifest, loadGenres, genreWeight } from './forge.js';
+import { plan, build, writeGame, readManifest, loadGenres, genreWeight } from './forge.js';
+import { invent, saveInvention, listInventions } from './invent.js';
 import { THEMES } from './themes.js';
 import { TRENDS_UPDATED, GENRES } from './trends.js';
 import { researchTrends, saveLive, readLive, liveAgeDays, explainError, MAX_AGE_DAYS } from './live-trends.js';
@@ -26,6 +29,8 @@ if (has('help') || has('h')) {
   node src/cli.js [--count N] [--genre ID] [--theme ID] [--difficulty easy|normal|hard] [--seed S] [--out DIR]
   node src/cli.js --trends              דירוג הז'אנרים הנוכחי
   node src/cli.js --refresh-trends      מחקר טרנדים חי (דורש ANTHROPIC_API_KEY)
+  node src/cli.js --invent [--idea "כיוון"]   ה-AI ממציא מכניקה חדשה (דורש ANTHROPIC_API_KEY)
+  node src/cli.js --inventions          רשימת ההמצאות בספרייה
   node src/cli.js --live [...]          מרענן טרנדים אם הם ישנים מ-${MAX_AGE_DAYS} ימים, ואז בונה
 
 ז'אנרים: ${loadGenres().map(g => g.id).join(', ')}
@@ -56,6 +61,42 @@ if (has('refresh-trends')) {
     console.log(age === Infinity ? '🌐 אין עדיין מחקר חי, מריץ עכשיו…' : `🌐 המחקר האחרון בן ${Math.floor(age)} ימים, מרענן…`);
     if (!(await refresh())) console.log('   ממשיך עם הציונים הקיימים.');
   } else console.log(`🌐 משתמש במחקר חי מלפני ${age < 1 ? 'פחות מיום' : Math.floor(age) + ' ימים'}.`);
+}
+
+if (has('inventions')) {
+  const inv = listInventions();
+  if (!inv.length) console.log('אין עדיין המצאות. הריצו: node src/cli.js --invent');
+  for (const d of inv) console.log(`\n💡 ${d.name} (x-${d.id}) · משיכה ${d.appeal}/100 · ${d.created?.slice(0, 10) ?? ''}\n   ${d.pitch}\n   חדשנות: ${d.novelty}`);
+  console.log('');
+  process.exit(0);
+}
+
+if (has('invent')) {
+  const genres = loadGenres().filter(g => !g.invention);
+  const theme = THEMES.find(t => t.id === opt('theme')) || THEMES[Math.floor(Math.random() * THEMES.length)];
+  const buildHtml = (design, code) => build({
+    slug: 'invention-test', title: design.name, icon: '💡', howto: design.howto, genreName: design.name,
+    template: 'inv:' + design.id, code, themeObj: theme, params: Object.fromEntries(design.params.map(p => [p.key, p.value])),
+  });
+  try {
+    const r = await invent({ genres, buildHtml, emerging: readLive()?.emerging, idea: opt('idea', ''), log: m => console.log(m) });
+    const dir = saveInvention(r.design, r.code, { fixRounds: r.rounds, reviewIssues: r.review.issues, playtest: r.test.stats, browserTested: r.test.available });
+    console.log(`\n✅ הומצא: ${r.design.name}\n   ${r.design.pitch}\n   חוקים: ${r.design.rules}\n   חדשנות: ${r.design.novelty}\n   📁 ${path.relative(process.cwd(), dir)}`);
+    const p = plan({ seed: opt('seed', String(Date.now())), genre: 'x-' + r.design.id, theme: theme.id, made });
+    const file = writeGame(p, outDir);
+    console.log(`\n🎮 ${p.title} ${p.icon}\n   📁 ${path.relative(process.cwd(), file)}\n   מעכשיו המחולל יכול לבחור בהמצאה הזו עם כל נושא.\n`);
+    process.exit(0);
+  } catch (e) {
+    console.error(`\n⚠️  ההמצאה נכשלה: ${explainError(e)}`);
+    if (e.partial) {
+      const dir = path.join(ROOT, '.inventions-failed', e.partial.design.id);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'game.js'), e.partial.code);
+      fs.writeFileSync(path.join(dir, 'design.json'), JSON.stringify({ ...e.partial.design, errors: e.partial.test.errors }, null, 2));
+      console.error(`   הטיוטה נשמרה לבדיקה ב-${path.relative(process.cwd(), dir)}`);
+    }
+    process.exit(1);
+  }
 }
 
 if (has('trends')) {

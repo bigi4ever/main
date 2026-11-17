@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { GENRES } from './trends.js';
 import { THEMES } from './themes.js';
 import { readLive } from './live-trends.js';
+import { listInventions, scaleParams, INV_DIR } from './invent.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TPL = path.join(ROOT, 'src', 'templates');
@@ -46,7 +47,28 @@ export function loadGenres() {
     if (l) Object.assign(out, { score: l.score, trend: l.trend, evidence: l.evidence, source: 'חי' });
     if (override[g.id] != null) Object.assign(out, { score: override[g.id], source: 'ידני' });
     return out;
-  }).sort((a, b) => b.score - a.score);
+  }).concat(inventionGenres()).sort((a, b) => b.score - a.score);
+}
+
+// המצאות של ה-AI מצטרפות למאגר כז'אנרים. אין להן עדיין נתוני שוק, אז הציון שלהן מוגבל ל-85.
+function inventionGenres() {
+  return listInventions().map(d => ({
+    id: 'x-' + d.id, name: d.name, template: 'inv:' + d.id, score: Math.min(85, Math.max(30, d.appeal)),
+    why: `${d.pitch} (הומצא ע"י ה-AI)`, tags: ['invented'], source: 'המצאה', invention: d,
+  }));
+}
+
+function templatePath(name) {
+  return name.startsWith('inv:') ? path.join(INV_DIR, name.slice(4), 'game.js') : path.join(TPL, `${name}.game.js`);
+}
+
+// ממלא מצייני מקום בטקסט של המצאה לפי הנושא
+export function fillText(text, t) {
+  const w = t.words;
+  return String(text)
+    .replaceAll('{in_place}', b(w.place)).replaceAll('{from_place}', 'מ' + w.place)
+    .replaceAll('{hero}', w.hero).replaceAll('{place}', w.place).replaceAll('{thing}', w.thing)
+    .replaceAll('{adj}', w.adj).replaceAll('{pickup}', t.pickup);
 }
 
 // משקל בחירה: פופולריות בריבוע (מעדיף בבירור את המובילים), עם קנס על ז'אנר שכבר נוצר הרבה, כדי לגוון.
@@ -88,7 +110,7 @@ function paramsFor(genre, rng, k) {
 }
 
 // ---------- שמות והוראות ----------
-const b = w => 'ב' + (w.startsWith('ה') ? w.slice(1) : w); // "החלל" -> "בחלל"
+function b(w) { return 'ב' + (w.startsWith('ה') ? w.slice(1) : w); } // "החלל" -> "בחלל"
 
 function titleFor(genre, t, rng) {
   const w = t.words;
@@ -127,19 +149,20 @@ export function plan({ seed = Date.now(), genre, theme, difficulty, made = [] } 
   const d = difficulty ? DIFFICULTY.find(x => x.id === difficulty) : rng.weighted(DIFFICULTY, x => (x.id === 'normal' ? 2 : 1));
   if (!d) throw new Error(`רמת קושי לא מוכרת: ${difficulty}`);
 
-  const params = paramsFor(g.id, rng, d.k);
-  const title = titleFor(g.id, t, rng);
+  const inv = g.invention;
+  const params = inv ? scaleParams(inv, d.k) : paramsFor(g.id, rng, d.k);
+  const title = inv ? fillText(rng.pick(inv.titles.length ? inv.titles : [inv.name]), t) : titleFor(g.id, t, rng);
   const id = Math.floor(rng.next() * 0xffffff).toString(16).padStart(6, '0');
   const totalW = genres.reduce((a, x) => a + genreWeight(x, made), 0);
   return {
     slug: `${g.id}-${t.id}-${id}`,
     seed: String(seed),
     title,
-    icon: g.id === 'idle' ? t.clickable : g.id === 'merge' ? t.tiers[5] : g.id === 'match3' ? t.gems[0] : g.id === 'arrows' ? '➡️' : t.hero,
+    icon: inv ? (t[inv.icon] && typeof t[inv.icon] === 'string' ? t[inv.icon] : inv.icon) : g.id === 'idle' ? t.clickable : g.id === 'merge' ? t.tiers[5] : g.id === 'match3' ? t.gems[0] : g.id === 'arrows' ? '➡️' : t.hero,
     genre: g.id, genreName: g.name, template: g.template,
     theme: t.id, themeName: t.name,
     difficulty: d.id, difficultyName: d.name,
-    howto: howtoFor(g.id, t),
+    howto: inv ? fillText(inv.howto, t) : howtoFor(g.id, t),
     params,
     reason: genre ? 'נבחר ידנית' :
       `${g.name}: פופולריות ${g.score}/100 (${g.source === 'חי' ? 'מחקר חי' : g.source === 'ידני' ? 'דריסה ידנית' : 'ציון בסיס'}), נוצרו כבר ${made.filter(m => m.genre === g.id).length}, ` +
@@ -150,7 +173,7 @@ export function plan({ seed = Date.now(), genre, theme, difficulty, made = [] } 
 
 export function build(p) {
   const base = fs.readFileSync(path.join(TPL, 'base.html'), 'utf8');
-  const code = fs.readFileSync(path.join(TPL, `${p.template}.game.js`), 'utf8');
+  const code = p.code ?? fs.readFileSync(templatePath(p.template), 'utf8');
   const cssFile = path.join(TPL, `${p.template}.css`);
   const css = fs.existsSync(cssFile) ? fs.readFileSync(cssFile, 'utf8') : '';
   const cfg = {
