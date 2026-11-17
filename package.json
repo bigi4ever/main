@@ -1,0 +1,13 @@
+{
+  "name": "game-forge",
+  "version": "1.0.0",
+  "description": "מחולל משחקים אוטומטי: בוחר ז'אנר פופולרי, נושא ופרמטרים, ומייצר משחק HTML5 שלם",
+  "type": "module",
+  "bin": { "forge": "src/cli.js" },
+  "scripts": {
+    "forge": "node src/cli.js",
+    "trends": "node src/cli.js --trends",
+    "test": "node test/smoke.js"
+  },
+  "license": "MIT"
+}
