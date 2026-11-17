@@ -80,6 +80,8 @@ function paramsFor(genre, rng, k) {
     };
     case 'merge': return { size: k > 1.1 ? 5 : 6 };
     case 'blockpuzzle': return { bigChance: r(0.35, 0.5) * k };
+    case 'match3': return { kinds: k > 1.1 ? 6 : 5, moves: Math.round(rng.range(20, 26) / k), target: Math.round(rng.range(700, 900) * k) };
+    case 'arrows': return { startSize: k > 1.1 ? 5 : 4, maxSize: 9, density: r(0.62, 0.72) * Math.min(1.1, k), hearts: k > 1.1 ? 2 : 3 };
     case 'idle': return { speed: r(0.9, 1.3) / k, click: 1 };
     default: return {};
   }
@@ -95,6 +97,8 @@ function titleFor(genre, t, rng) {
     runner: [`בריחה מ${w.place}`, `המרוץ ${b(w.place)}`, `ריצה ${b(w.place)}`, `${w.hero} במנוסה`, `דהירה ${b(w.place)}`],
     merge: [`סדנת ${w.thing}`, `מיזוג ${w.adj}`, `${w.thing} מתמזגים`, `מעבדת ${w.thing}`],
     blockpuzzle: [`בלוקים ${b(w.place)}`, `פאזל ${w.place}`, `לבנים ${b(w.place)}`, `בלוק אחרי בלוק ${b(w.place)}`],
+    match3: [`התאמות ${b(w.place)}`, `שלוש ${b(w.place)}`, `${w.thing} בשורה`, `קסם ${w.adj}`],
+    arrows: [`חצים ${b(w.place)}`, `היציאה מ${w.place}`, `מבוך החצים`, `פקק ${b(w.place)}`],
     idle: [`אימפריית ${w.thing}`, `${w.thing} בלי סוף`, `טייקון ${w.place}`, `מכרה ${w.thing}`],
   };
   return rng.pick(opts[genre]);
@@ -106,6 +110,8 @@ function howtoFor(genre, t) {
     runner: `${t.hero} רץ בלי הפסקה. לחץ על המסך או על רווח כדי לקפוץ, ולחץ שוב באוויר לקפיצה כפולה. התחמק מ-${t.obstacle.join('')} ואסוף ${t.pickup}.`,
     merge: `לחץ על משבצת ריקה כדי להניח את הפריט הבא. 3 פריטים זהים צמודים מתמזגים לפריט הבא בסדרה: ${t.tiers.slice(0, 4).join('→')}… אפשר לשמור פריט בצד. נגמר כשהלוח מלא.`,
     blockpuzzle: `גרור צורות אל הלוח. שורה או עמודה מלאה מתנקות ונותנות נקודות, וניקוי ברצף נותן קומבו. נגמר כשאין מקום לאף צורה.`,
+    match3: `החלף שני פריטים צמודים (גרירה או שתי לחיצות) כדי ליצור שורה של 3 ומעלה. 4 ברצף יוצרים פריט פס שמנקה שורה, 5 יוצרים פצצת צבע 💥. הגע ליעד הניקוד לפני שנגמרים המהלכים.`,
+    arrows: `לחץ על חץ, והוא יחליק החוצה בכיוון שלו אם הדרך פנויה. חץ שנתקע בחץ אחר עולה בלב ❤️. נקה את כל החצים כדי לעבור שלב. כל לוח פתיר, צריך רק למצוא את הסדר.`,
     idle: `לחץ על ${t.clickable} כדי לאסוף ${t.currency}, וקנה מחוללים שמייצרים בשבילך. ההתקדמות נשמרת.`,
   }[genre];
 }
@@ -129,7 +135,7 @@ export function plan({ seed = Date.now(), genre, theme, difficulty, made = [] } 
     slug: `${g.id}-${t.id}-${id}`,
     seed: String(seed),
     title,
-    icon: g.id === 'idle' ? t.clickable : g.id === 'merge' ? t.tiers[5] : t.hero,
+    icon: g.id === 'idle' ? t.clickable : g.id === 'merge' ? t.tiers[5] : g.id === 'match3' ? t.gems[0] : g.id === 'arrows' ? '➡️' : t.hero,
     genre: g.id, genreName: g.name, template: g.template,
     theme: t.id, themeName: t.name,
     difficulty: d.id, difficultyName: d.name,

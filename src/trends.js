@@ -7,6 +7,22 @@ export const TRENDS_UPDATED = '2026-11';
 
 export const GENRES = [
   {
+    id: 'match3',
+    name: 'התאמת שלוש (Match-3)',
+    template: 'match3',
+    score: 89,
+    why: 'מחליפים פריטים צמודים ויוצרים שורות של 3. ז\'אנר הפאזל המכניס ביותר במובייל, ובעליה גם בפורטלי דפדפן (מרץ 2026).',
+    tags: ['puzzle', 'casual'],
+  },
+  {
+    id: 'arrows',
+    name: 'פאזל חצים',
+    template: 'arrows',
+    score: 87,
+    why: 'מוציאים חצים מהלוח בסדר הנכון בלי להיתקע. מכניקה ויראלית: משחק כזה הגיע למקום הראשון בהורדות במאי 2026.',
+    tags: ['puzzle', 'hypercasual'],
+  },
+  {
     id: 'survivors',
     name: 'הישרדות מול גלים',
     template: 'survivors',
