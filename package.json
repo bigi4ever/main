@@ -1,0 +1,20 @@
+{
+  "name": "game-forge",
+  "version": "1.0.0",
+  "description": "מחולל משחקים אוטומטי: בוחר ז'אנר פופולרי, נושא ופרמטרים, ומייצר משחק HTML5 שלם",
+  "type": "module",
+  "bin": {
+    "forge": "src/cli.js"
+  },
+  "scripts": {
+    "forge": "node src/cli.js",
+    "trends": "node src/cli.js --trends",
+    "test": "node test/live-trends.test.js && node test/invent.test.js && node test/smoke.js && node test/logic.js",
+    "refresh-trends": "node src/cli.js --refresh-trends",
+    "invent": "node src/cli.js --invent"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0"
+  }
+}

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>__TITLE__</title>
+<style>
+  :root { --bg:#111; --bg2:#222; --fg:#fff; --accent:#fc3; --danger:#f44; --grid:#333; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden;
+    font-family: system-ui, "Segoe UI", "Rubik", Arial, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center;
+    padding:10px 16px; font-weight:800; font-size:18px; pointer-events:none; text-shadow:0 2px 4px #000a; gap:10px; z-index:5; }
+  #ov { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#000a;
+    backdrop-filter:blur(4px); z-index:20; padding:16px; box-sizing:border-box; }
+  .card { background:var(--bg2); border:2px solid var(--accent); border-radius:20px; padding:24px 22px;
+    width:min(420px,100%); text-align:center; box-shadow:0 12px 48px #000c; box-sizing:border-box; }
+  .card h1 { margin:0 0 6px; font-size:30px; color:var(--accent); line-height:1.2; }
+  .card h2 { margin:0 0 10px; font-size:22px; }
+  .card p { opacity:.88; line-height:1.55; margin:8px 0; }
+  .card .big { font-size:64px; line-height:1.1; margin:4px 0; }
+  .card .stat { font-size:20px; font-weight:800; margin:6px 0; }
+  .btn { background:var(--accent); color:var(--bg); border:0; border-radius:14px; padding:12px 28px; font-size:20px;
+    font-weight:900; cursor:pointer; margin:8px 4px 0; font-family:inherit; transition:transform .1s; }
+  .btn:active { transform:scale(.95); }
+  .choice { display:flex; align-items:center; gap:12px; width:100%; text-align:right; background:var(--bg);
+    color:var(--fg); border:2px solid var(--grid); border-radius:14px; padding:12px 14px; margin:8px 0; cursor:pointer;
+    font:inherit; font-size:17px; font-weight:700; }
+  .choice:hover { border-color:var(--accent); }
+  .choice .ic { font-size:30px; }
+  .hidden { display:none !important; }
+  .credit { font-size:12px; opacity:.5; margin-top:14px; }
+  __EXTRA_CSS__
+</style>
+</head>
+<body>
+<canvas id="c" dir="ltr"></canvas>
+<div id="hud"><span id="hudR"></span><span id="hudL"></span></div>
+<div id="app"></div>
+<div id="ov" class="hidden"><div class="card" id="card"></div></div>
+<script type="application/json" id="cfg">__CONFIG__</script>
+<script>
+"use strict";
+// ---------- זמן ריצה משותף לכל המשחקים ----------
+const CFG = JSON.parse(document.getElementById('cfg').textContent);
+const T = CFG.theme, P = T.palette, S = CFG.params;
+for (const [k, v] of Object.entries(P)) document.documentElement.style.setProperty('--' + k, v);
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+const G = { state: 'menu', score: 0 };
+const keys = new Set();
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(rand(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+const fmt = n => {
+  if (n < 1000) return (Math.round(n * 10) / 10).toLocaleString('en-US');
+  const u = ['K', 'M', 'B', 'T', 'aa', 'ab', 'ac', 'ad'];
+  let i = -1; while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
+  return n.toFixed(n < 10 ? 2 : n < 100 ? 1 : 0) + u[i];
+};
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(CFG.slug + ':' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(CFG.slug + ':' + k, JSON.stringify(v)); } catch (e) {} },
+};
+
+let AC = null, muted = store.get('muted', false);
+function beep(freq = 440, dur = 0.08, type = 'square', vol = 0.04) {
+  if (muted) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, AC.currentTime);
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + dur);
+    o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
+  } catch (e) {}
+}
+
+// ציור אימוג'י דרך מטמון של קנבסים קטנים (מהיר בהרבה מ-fillText בכל פריים)
+const emojiCache = new Map();
+function drawEmoji(e, x, y, size, flip = false, alpha = 1) {
+  const key = e + '|' + Math.round(size);
+  let c = emojiCache.get(key);
+  if (!c) {
+    c = document.createElement('canvas');
+    const px = Math.ceil(size * 1.35 * DPR);
+    c.width = c.height = px;
+    const g = c.getContext('2d');
+    g.font = `${size * DPR}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(e, px / 2, px / 2 + size * 0.08 * DPR);
+    emojiCache.set(key, c);
+  }
+  const s = c.width / DPR;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(c, -s / 2, -s / 2, s, s);
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// אפקטים: חלקיקים וטקסט צף
+const fx = [];
+function burst(x, y, color, n = 10, speed = 160) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = rand(speed * 0.3, speed);
+    fx.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.3, 0.7), max: 0.7, color, r: rand(2, 4) });
+  }
+}
+function floatText(x, y, text, color = P.accent, size = 20) {
+  fx.push({ x, y, vx: 0, vy: -50, life: 0.9, max: 0.9, text, color, size });
+}
+function updFx(dt) {
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const p = fx[i];
+    p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+    if (!p.text) { p.vx *= 0.92; p.vy *= 0.92; }
+    if (p.life <= 0) fx.splice(i, 1);
+  }
+}
+function drawFx(ox = 0, oy = 0) {
+  for (const p of fx) {
+    ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
+    if (p.text) {
+      ctx.fillStyle = p.color; ctx.font = `900 ${p.size}px system-ui,sans-serif`; ctx.textAlign = 'center';
+      ctx.strokeStyle = '#000a'; ctx.lineWidth = 4; ctx.strokeText(p.text, p.x - ox, p.y - oy); ctx.fillText(p.text, p.x - ox, p.y - oy);
+    } else {
+      ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x - ox, p.y - oy, p.r, 0, 7); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ממשק: HUD וכרטיסים
+const $ov = document.getElementById('ov'), $card = document.getElementById('card');
+const $hudR = document.getElementById('hudR'), $hudL = document.getElementById('hudL');
+function hud(right = '', left = '') {
+  if ($hudR._v !== right) { $hudR.innerHTML = right; $hudR._v = right; }
+  if ($hudL._v !== left) { $hudL.innerHTML = left; $hudL._v = left; }
+}
+function showCard(html) { $card.innerHTML = html; $ov.classList.remove('hidden'); }
+function hideCard() { $ov.classList.add('hidden'); }
+
+function menu() {
+  G.state = 'menu';
+  const best = store.get('best', 0);
+  showCard(`
+    <div class="big">${CFG.icon}</div>
+    <h1>${CFG.title}</h1>
+    <p>${CFG.howto}</p>
+    ${best ? `<div class="stat">🏆 שיא: ${fmt(best)}</div>` : ''}
+    <button class="btn" id="play">▶ שחק</button>
+    <div class="credit">${CFG.genreName} · ${T.name} · נוצר אוטומטית ע"י Game Forge</div>`);
+  document.getElementById('play').onclick = startGame;
+}
+function startGame() {
+  hideCard(); fx.length = 0; G.score = 0; G.state = 'play'; game.reset(); beep(660, 0.1, 'triangle');
+}
+function gameOver(score, extra = '') {
+  G.state = 'over';
+  const prev = store.get('best', 0), rec = score > prev;
+  if (rec) store.set('best', score);
+  beep(180, 0.4, 'sawtooth', 0.05);
+  setTimeout(() => {
+    showCard(`
+      <div class="big">${rec ? '🏆' : '💥'}</div>
+      <h1>${rec ? 'שיא חדש!' : 'המשחק נגמר'}</h1>
+      <div class="stat">ניקוד: ${fmt(score)}</div>
+      ${extra ? `<p>${extra}</p>` : ''}
+      <p>שיא: ${fmt(Math.max(prev, score))}</p>
+      <button class="btn" id="again">↻ שוב</button>`);
+    document.getElementById('again').onclick = startGame;
+  }, 450);
+}
+
+function fit() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  emojiCache.clear();
+  if (game.resize) game.resize();
+}
+
+const ptr = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture?.(e.pointerId); if (G.state === 'play' || game.autostart) game.down?.(...ptr(e)); });
+cv.addEventListener('pointermove', e => { if (G.state === 'play' || game.autostart) game.move?.(...ptr(e)); });
+cv.addEventListener('pointerup', e => { if (G.state === 'play' || game.autostart) game.up?.(...ptr(e)); });
+cv.addEventListener('pointercancel', e => { if (G.state === 'play') game.up?.(...ptr(e)); });
+window.addEventListener('keydown', e => {
+  keys.add(e.code);
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  if ((e.code === 'Space' || e.code === 'Enter') && (G.state === 'menu' || G.state === 'over') && !$ov.classList.contains('hidden')) {
+    const b = $card.querySelector('.btn'); if (b) { b.click(); return; }
+  }
+  if (G.state === 'play') game.key?.(e.code);
+});
+window.addEventListener('keyup', e => keys.delete(e.code));
+</script>
+<script>
+"use strict";
+// ---------- לוגיקת המשחק (נוצרה מהתבנית: __TEMPLATE__) ----------
+__GAME__
+</script>
+<script>
+"use strict";
+window.addEventListener('resize', fit);
+fit();
+if (game.init) game.init();
+if (game.autostart) { G.state = 'play'; game.reset(); } else menu();
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (G.state === 'play') game.update(dt);
+  updFx(G.state === 'pause' ? 0 : dt);
+  game.draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
