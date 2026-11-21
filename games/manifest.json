@@ -211,5 +211,25 @@
     },
     "reason": "נבחר ידנית",
     "created": "2026-11-17T23:20:10.837Z"
+  },
+  {
+    "slug": "idle-farm-794578",
+    "seed": "clicker1",
+    "title": "טייקון החווה",
+    "icon": "🌽",
+    "genre": "idle",
+    "genreName": "קליקר / איידל",
+    "template": "idle",
+    "theme": "farm",
+    "themeName": "חווה",
+    "difficulty": "hard",
+    "difficultyName": "קשה",
+    "howto": "לחץ על 🌽 כדי לאסוף 🥚, וקנה מחוללים שמייצרים בשבילך. ההתקדמות נשמרת.",
+    "params": {
+      "speed": 0.9508196721311475,
+      "click": 1
+    },
+    "reason": "נבחר ידנית",
+    "created": "2026-11-21T11:52:05.515Z"
   }
 ]

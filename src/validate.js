@@ -5,7 +5,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 
-const RESERVED = 'CFG T P S cv ctx W H DPR G keys rand randi pick clamp dist fmt store AC muted beep emojiCache drawEmoji roundRect fx burst floatText updFx drawFx $ov $card $hudR $hudL hud showCard hideCard menu startGame gameOver fit ptr last loop'.split(' ');
+const RESERVED = 'CFG T P S cv ctx W H DPR G keys rand randi pick clamp dist fmt store AC muted beep emojiCache drawEmoji roundRect fx burst floatText updFx drawFx $ov $card $hudR $hudL hud showCard hideCard menu startGame gameOver fit ptr booted ready active last loop'.split(' ');
 
 // בדיקה סטטית מהירה: תחביר, הגדרת game, והתנגשות עם שמות של זמן הריצה
 export function staticCheck(code) {

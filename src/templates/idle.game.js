@@ -61,7 +61,7 @@ function fresh(prestige = 0) { return { money: 0, total: 0, owned: T.buildings.m
 function refresh() {
   document.getElementById('money').textContent = `${T.currency} ${fmt(Math.floor(s.money))}`;
   document.getElementById('rate').textContent = `${fmt(perSec())} לשנייה` + (s.prestige ? ` · 🌟 בונוס ${s.prestige * 10}%` : '');
-  document.getElementById('tapinfo').textContent = `כל לחיצה: +${fmt(clickVal())}`;
+  document.getElementById('tapinfo').textContent = `כל לחיצה: \u2066+${fmt(clickVal())}\u2069`; // בידוד LTR כדי שהפלוס יופיע לפני המספר
   document.getElementById('clvl').textContent = s.clickLvl;
   const bc = document.getElementById('bclick'); bc.textContent = fmt(clickCost()); bc.disabled = s.money < clickCost();
   T.buildings.forEach((_, i) => {

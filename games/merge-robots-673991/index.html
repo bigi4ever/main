@@ -38,7 +38,7 @@
 <div id="hud"><span id="hudR"></span><span id="hudL"></span></div>
 <div id="app"></div>
 <div id="ov" class="hidden"><div class="card" id="card"></div></div>
-<script type="application/json" id="cfg">{"slug":"merge-robots-673991","title":"מיזוג ממוכן","icon":"💾","howto":"לחץ על משבצת ריקה כדי להניח את הפריט הבא. 3 פריטים זהים צמודים מתמזגים לפריט הבא בסדרה: 🔩→⚙️→🔋→💡… אפשר לשמור פריט בצד. נגמר כשהלוח מלא.","genreName":"מיזוג שלישיות","theme":{"id":"robots","name":"רובוטים","palette":{"bg":"#0d1418","bg2":"#16232a","fg":"#e0fbff","accent":"#00e5ff","danger":"#ff3d3d","grid":"#1f343e"},"hero":"🤖","enemies":["🦾","📡","💣","🔩"],"boss":"🏭","pickup":"🔋","obstacle":["🚧","⚙️"],"tiers":["🔩","⚙️","🔋","💡","📟","💾","💻","🤖","🛰️","🧠"],"currency":"🔋","clickable":"⚙️","buildings":[["🔧","מכונאי"],["⚙️","פס ייצור"],["🤖","רובוט עוזר"],["🏭","מפעל"],["🛰️","רשת לוויינים"],["🧠","בינה על"]],"words":{"place":"העיר הממוכנת","hero":"הרובוט","thing":"הסוללות","adj":"ממוכן"}},"params":{"size":6}}</script>
+<script type="application/json" id="cfg">{"slug":"merge-robots-673991","title":"מיזוג ממוכן","icon":"💾","howto":"לחץ על משבצת ריקה כדי להניח את הפריט הבא. 3 פריטים זהים צמודים מתמזגים לפריט הבא בסדרה: 🔩→⚙️→🔋→💡… אפשר לשמור פריט בצד. נגמר כשהלוח מלא.","genreName":"מיזוג שלישיות","theme":{"id":"robots","name":"רובוטים","palette":{"bg":"#0d1418","bg2":"#16232a","fg":"#e0fbff","accent":"#00e5ff","danger":"#ff3d3d","grid":"#1f343e"},"hero":"🤖","enemies":["🦾","📡","💣","🔩"],"boss":"🏭","pickup":"🔋","obstacle":["🚧","⚙️"],"tiers":["🔩","⚙️","🔋","💡","📟","💾","💻","🤖","🛰️","🧠"],"gems":["🔋","⚙️","💡","💾","🔩","📡"],"currency":"🔋","clickable":"⚙️","buildings":[["🔧","מכונאי"],["⚙️","פס ייצור"],["🤖","רובוט עוזר"],["🏭","מפעל"],["🛰️","רשת לוויינים"],["🧠","בינה על"]],"words":{"place":"העיר הממוכנת","hero":"הרובוט","thing":"הסוללות","adj":"ממוכן"}},"params":{"size":6}}</script>
 <script>
 "use strict";
 // ---------- זמן ריצה משותף לכל המשחקים ----------
@@ -191,21 +191,25 @@ function fit() {
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   emojiCache.clear();
-  if (game.resize) game.resize();
+  if (typeof game !== 'undefined' && game.resize) game.resize();
 }
 
 const ptr = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-cv.addEventListener('pointerdown', e => { cv.setPointerCapture?.(e.pointerId); if (G.state === 'play' || game.autostart) game.down?.(...ptr(e)); });
-cv.addEventListener('pointermove', e => { if (G.state === 'play' || game.autostart) game.move?.(...ptr(e)); });
-cv.addEventListener('pointerup', e => { if (G.state === 'play' || game.autostart) game.up?.(...ptr(e)); });
-cv.addEventListener('pointercancel', e => { if (G.state === 'play') game.up?.(...ptr(e)); });
+// אירועי קלט יכולים להגיע לפני שסקריפט המשחק נטען (למשל אצבע על המסך בזמן הטעינה), לכן בודקים שהמשחק קיים ושהלולאה התחילה
+let booted = false;
+const ready = () => booted && typeof game !== 'undefined';
+const active = () => ready() && (G.state === 'play' || game.autostart);
+cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch {} if (active()) game.down?.(...ptr(e)); });
+cv.addEventListener('pointermove', e => { if (active()) game.move?.(...ptr(e)); });
+cv.addEventListener('pointerup', e => { if (active()) game.up?.(...ptr(e)); });
+cv.addEventListener('pointercancel', e => { if (ready() && G.state === 'play') game.up?.(...ptr(e)); });
 window.addEventListener('keydown', e => {
   keys.add(e.code);
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if ((e.code === 'Space' || e.code === 'Enter') && (G.state === 'menu' || G.state === 'over') && !$ov.classList.contains('hidden')) {
     const b = $card.querySelector('.btn'); if (b) { b.click(); return; }
   }
-  if (G.state === 'play') game.key?.(e.code);
+  if (ready() && G.state === 'play') game.key?.(e.code);
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
 </script>
@@ -352,6 +356,7 @@ window.addEventListener('resize', fit);
 fit();
 if (game.init) game.init();
 if (game.autostart) { G.state = 'play'; game.reset(); } else menu();
+booted = true;
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;

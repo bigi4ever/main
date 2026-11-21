@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { plan, build, writeGame, readManifest, loadGenres, genreWeight } from './forge.js';
+import { plan, build, writeGame, writeGallery, readManifest, loadGenres, genreWeight } from './forge.js';
 import { invent, saveInvention, listInventions } from './invent.js';
 import { THEMES } from './themes.js';
 import { TRENDS_UPDATED, GENRES } from './trends.js';
@@ -31,6 +31,7 @@ if (has('help') || has('h')) {
   node src/cli.js --refresh-trends      מחקר טרנדים חי (דורש ANTHROPIC_API_KEY)
   node src/cli.js --invent [--idea "כיוון"]   ה-AI ממציא מכניקה חדשה (דורש ANTHROPIC_API_KEY)
   node src/cli.js --inventions          רשימת ההמצאות בספרייה
+  node src/cli.js --rebuild             בונה מחדש את כל המשחקים הקיימים עם התבניות העדכניות
   node src/cli.js --live [...]          מרענן טרנדים אם הם ישנים מ-${MAX_AGE_DAYS} ימים, ואז בונה
 
 ז'אנרים: ${loadGenres().map(g => g.id).join(', ')}
@@ -61,6 +62,20 @@ if (has('refresh-trends')) {
     console.log(age === Infinity ? '🌐 אין עדיין מחקר חי, מריץ עכשיו…' : `🌐 המחקר האחרון בן ${Math.floor(age)} ימים, מרענן…`);
     if (!(await refresh())) console.log('   ממשיך עם הציונים הקיימים.');
   } else console.log(`🌐 משתמש במחקר חי מלפני ${age < 1 ? 'פחות מיום' : Math.floor(age) + ' ימים'}.`);
+}
+
+if (has('rebuild')) {
+  // בונה מחדש את כל המשחקים הקיימים עם זמן הריצה והתבניות העדכניים (אותם שמות, נושאים ופרמטרים)
+  let n = 0;
+  for (const m of made) {
+    const themeObj = THEMES.find(t => t.id === m.theme);
+    if (!themeObj) continue;
+    fs.writeFileSync(path.join(outDir, m.slug, 'index.html'), build({ ...m, themeObj }));
+    n++;
+  }
+  writeGallery(made, outDir);
+  console.log(`🔁 נבנו מחדש ${n} משחקים`);
+  process.exit(0);
 }
 
 if (has('inventions')) {
